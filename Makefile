@@ -240,8 +240,9 @@ check_%:
 # --------------------------------------------------------------------
 .PHONY: parameters_metadata airframe_metadata module_documentation px4_metadata
 
-parameters_metadata: posix_sitl_default
-	@python $(SRC_DIR)/Tools/px_process_params.py -s $(SRC_DIR)/src --markdown
+parameters_metadata:
+	@python $(SRC_DIR)/Tools/px_process_params.py -s `find $(SRC_DIR)/src -maxdepth 3 -type d` --inject-xml $(SRC_DIR)/Tools/parameters_injected.xml --markdown
+	@python $(SRC_DIR)/Tools/px_process_params.py -s `find $(SRC_DIR)/src -maxdepth 3 -type d` --inject-xml $(SRC_DIR)/Tools/parameters_injected.xml --xml
 
 airframe_metadata:
 	@python $(SRC_DIR)/Tools/px_process_airframes.py -v -a $(SRC_DIR)/ROMFS/px4fmu_common/init.d --markdown
@@ -278,7 +279,7 @@ s3put_misc_qgc_extra_firmware: misc_qgc_extra_firmware
 s3put_metadata: px4_metadata
 	@$(SRC_DIR)/Tools/s3put.sh airframes.md
 	@$(SRC_DIR)/Tools/s3put.sh airframes.xml
-	@$(SRC_DIR)/Tools/s3put.sh build/posix_sitl_default/parameters.xml
+	@$(SRC_DIR)/Tools/s3put.sh parameters.xml
 	@$(SRC_DIR)/Tools/s3put.sh parameters.md
 
 s3put_scan-build: scan-build

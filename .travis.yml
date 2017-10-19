@@ -9,8 +9,8 @@ git:
 
 env:
   global:
-    # COVERITY KEY
-    - secure: "NyaJoCGjU0Xc90Y6bxVYWLgjrJX5HlZsm/SPxruZ6I7xkGo19fJIFzGegOHQFR32D4AiKjllfjTUNy+ncckWplind0QwxtF4/kxXrz9XBfiby6X8jLYXIekrB6Ay0mBLGbniDdh+lpWtcyop6Dmkt5bdJCJuKY2nv9ENnhhs07M="
+    # COVERITY_SCAN_TOKEN
+    - secure: "Q4IAcmo1r5cr/UvhcixQa6QN5e5eTcP7FeidzEbX2+BA38yo2BH5O9YQCvZe2AI1Na8ZCjVx3H2luGgDwOKgzAIAjXjZ2KbmXYc6Ns/j/BXScY05dCCzYEhXKD98NZxIKH9lLN9pYDGRA8pChGRJnVlFOr1JHHHnB801+osHy7M="
     # AWS KEY: $PX4_AWS_KEY
     - secure: "XknnZHWBbpHbN4f3fuAVwUztdLIu8ej4keC3aQSDofo3uw8AFEzojfsQsN9u77ShWSIV4iYJWh9C9ALkCx7TocJ+xYjiboo10YhM9lH/8u+EXjYWG6GHS8ua0wkir+cViSxoLNaMtmcb/rPTicJecAGANxLsIHyBAgTL3fkbLSA="
     # AWS SECRET: $PX4_AWS_SECRET
@@ -49,20 +49,24 @@ matrix:
       services:
         - docker
       env: BUILD_TARGET=scan-build
+      if: type = push
     - os: linux
       sudo: required
       services:
         - docker
       env: BUILD_TARGET=cppcheck
+      if: type = push
     - os: linux
       sudo: required
       services:
         - docker
       env: BUILD_TARGET=px4_metadata
+      if: type = push
     - os: linux
       dist: trusty
       sudo: required
       env: BUILD_TARGET=coverity_scan
+      if: branch = coverity_scan
   allow_failures:
     - env: BUILD_TARGET=tests_asan
     - env: BUILD_TARGET=tests_coverage
@@ -72,20 +76,19 @@ cache:
 
 before_install:
   # install dependencies for the coverity build (target and branch), otherwise exit early
-  - if [[ "${TRAVIS_BRANCH}" = "coverity" ]]; then
-      if [[ "${BUILD_TARGET}" = "coverity_scan" ]]; then sudo apt-get install genromfs && pip install empy jinja2; else exit 0; fi;
+  - if [[ "${TRAVIS_BRANCH}" = "coverity_scan" ]]; then
+      if [[ "${BUILD_TARGET}" = "coverity_scan" ]]; then
+        sudo apt-get install genromfs && pip install empy jinja2;
+        echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-;
+      else
+        exit 0;
+      fi
     fi
   # use git:// to fetch instead of https://
   - git config --global url."git://".insteadOf https://
 
 script:
-  - if [[ "${BUILD_TARGET}" = "coverity_scan" ]]; then
-      echo "no script for coverity build";
-
-    elif [[ "${TRAVIS_BRANCH}" = "coverity" ]]; then
-      echo "exit early for coverity build" && exit 0;
-
-    elif [[ "${BUILD_TARGET}" = "check_format" ]]; then
+  - if [[ "${BUILD_TARGET}" = "check_format" ]]; then
       ./Tools/docker_run.sh 'make check_format';
 
     elif [[ "${BUILD_TARGET}" = "tests" ]]; then
@@ -122,20 +125,9 @@ after_success:
 addons:
   coverity_scan:
     project:
-      name: PX4/Firmware
+      name: "PX4/Firmware"
+      description: "Build submitted via Travis CI"
     notification_email: ci@px4.io
-    build_command: make posix_sitl_default
-    branch_pattern: coverity
-
-notifications:
-  webhooks:
-    urls:
-      - https://webhooks.gitter.im/e/2b9c4a4cb2211f8befba
-    on_success: always  # options: [always|never|change] default: always
-    on_failure: always  # options: [always|never|change] default: always
-  slack:
-    rooms:
-      - secure: "QKw73Zel/s3JAbe/7XyO9tPnJwiiGFpYzSjdR8lG3tYFjRdXZnhxG4c+G7bkgkaPTS4Hult33VXE3kcEqOI7+C+eRwRlZhDfL0knQbXVCxjcLjzmUFdoPOwurlgZDw66PFWCi5tZcLKSRo3u4U8ibT4WKi3jm9sDSyOcfBAucMU="
-    on_pull_requests: false
-    on_success: never  # options: [always|never|change] default: always
-    on_failure: never  # options: [always|never|change] default: always
+    build_command_prepend: "make distclean"
+    build_command: "make posix_sitl_default"
+    branch_pattern: coverity_scan
